@@ -108,18 +108,21 @@ class ReActAgent:
         #OpenAI 和 Gemini 在對話紀錄的格式與「角色命名」上有所不同，所以第一步必須先進行翻譯。
         #OpenAI 的角色 (Roles) 通常有： user (使用者)、assistant (AI 助理)、system (系統提示詞)。
         #Gemini 的角色通常有： user (使用者)、model (AI 模型)。
+        system_prompt = None
         gemini_contents = []
         for msg in messages:
             role = msg["role"]
             
+            # 1. 抽離 System Role：只要遇到 system 就存到變數，並跳過不放入對話歷史
+            if role == "system":
+                system_prompt = msg["content"]
+                continue
+
             # 角色名稱對應轉換
             #程式碼透過一個迴圈 for msg in messages: 檢查每一條歷史訊息：
             #如果遇到 assistant，就自動把它改成 Gemini 看得懂的 model。
-            #如果遇到 system，這裡把它降級/轉換成 user 來處理（因為早期的 Gemini API 不支援獨立的 system role，通常會併入 user prompt 中處理）。
             if role == "assistant":
-                role = "model"
-            elif role == "system":
-                role = "user" 
+                role = "model" 
 
             #最後，把這些轉換好的角色和文字內容，打包成 Gemini SDK 專用的物件格式 genai.types.Content，並存入 gemini_contents 陣列中。 
             gemini_contents.append(
@@ -143,6 +146,9 @@ class ReActAgent:
         response = self.client.models.generate_content(
             model=self.model,
             contents=gemini_contents,
+            config=genai.types.GenerateContentConfig(
+                system_instruction=system_prompt  # 將抽出來的規則灌進這裡
+            )
         )
         
         #self.client.models.generate_content(...) (發送請求)
@@ -280,7 +286,7 @@ def main(project_directory):
     project_dir = os.path.abspath(project_directory)
 
     tools = [read_file, write_to_file, run_terminal_command]
-    agent = ReActAgent(tools=tools, model="gemini-2.5-flash", project_directory=project_dir)
+    agent = ReActAgent(tools=tools, model="gemini-3.5-flash", project_directory=project_dir)
 
     task = input("请输入任务：")
 
